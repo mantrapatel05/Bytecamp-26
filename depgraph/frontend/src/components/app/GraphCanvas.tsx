@@ -72,22 +72,10 @@ const GraphCanvas: React.FC = () => {
   useEffect(() => {
     if (!fgRef.current || !graphData?.nodes.length) return;
     const fg = fgRef.current;
-
-    // Custom X force: push each node toward its section's X target
-    fg.d3Force('section-x', (alpha: number) => {
-      (fg.graphData().nodes as any[]).forEach((node: any) => {
-        const layer = node.layer || getLayer(node.language || '');
-        const tx = layer === 'database' ? -520 : layer === 'backend' ? 0 : 520;
-        node.vx = ((node.vx as number) || 0) + (tx - ((node.x as number) || 0)) * alpha * 0.35;
-      });
-    });
-
-    // Z-flatten force: keep graph in a 2.5-D plane
-    fg.d3Force('z-flatten', (alpha: number) => {
-      (fg.graphData().nodes as any[]).forEach((node: any) => {
-        node.vz = ((node.vz as number) || 0) - ((node.z as number) || 0) * alpha * 0.15;
-      });
-    });
+    
+    // Disable custom forces for debugging
+    fg.d3Force('section-x', null);
+    fg.d3Force('z-flatten', null);
 
     fg.d3ReheatSimulation();
   }, [graphData]);
@@ -106,6 +94,10 @@ const GraphCanvas: React.FC = () => {
   // Convert edges → links (the library uses "links" not "edges")
   const fg3dData = useMemo(() => {
     if (!graphData) return { nodes: [], links: [] };
+    
+    // Create a Set of valid node IDs to prevent d3-force crash on missing nodes
+    const nodeIds = new Set(graphData.nodes.map((n: any) => n.id));
+    
     const links = graphData.edges
       .map(edge => ({
         source:        edge.source,
@@ -117,8 +109,9 @@ const GraphCanvas: React.FC = () => {
         inferredBy:    (edge.data as any)?.inferred_by || 'ast',
         transformation:(edge.data as any)?.transformation || '',
       }))
-      .filter(l => l.source && l.target);
-    return { nodes: graphData.nodes, links };
+      .filter(l => l.source && l.target && nodeIds.has(l.source as string) && nodeIds.has(l.target as string));
+      
+    return { nodes: graphData.nodes.map(n => ({ ...n })), links };
   }, [graphData]);
 
   // ── Custom Three.js node object ────────────────────────────────────────────
@@ -162,22 +155,26 @@ const GraphCanvas: React.FC = () => {
     }
 
     // Primary label sprite
-    const label = (node.name as string) || (node.id as string)?.split('::').pop() || '';
-    const sprite = new SpriteText(label);
-    sprite.color      = isSelected ? '#00e5b8' : (isDimmed ? '#1e3048' : '#e8f0fa');
-    sprite.textHeight = isSelected ? 9 : 5;
-    sprite.position.y = radius + 11;
-    group.add(sprite);
+    // Primary label sprite
+    try {
+      const labelStr = String(node.name || (typeof node.id === 'string' ? node.id.split('::').pop() : '?') || '?');
+      const sprite = new SpriteText(labelStr);
+      sprite.color      = isSelected ? '#00e5b8' : (isDimmed ? '#1e3048' : '#e8f0fa');
+      sprite.textHeight = isSelected ? 9 : 5;
+      sprite.position.y = radius + 11;
+      group.add(sprite);
 
-    // Sub-label on selected / highlighted
-    if (isSelected || isHit) {
-      const sub = new SpriteText(
-        `[${node.type || '?'}] ${(node.file as string || '').split('/').pop()}`,
-      );
-      sub.color      = '#8da4bd';
-      sub.textHeight = 3.5;
-      sub.position.y = radius + 20;
-      group.add(sub);
+      // Sub-label on selected / highlighted
+      if (isSelected || isHit) {
+        const fileStr = String(node.file || '');
+        const sub = new SpriteText(`[${node.type || '?'}] ${fileStr.split('/').pop()}`);
+        sub.color      = '#8da4bd';
+        sub.textHeight = 3.5;
+        sub.position.y = radius + 20;
+        group.add(sub);
+      }
+    } catch (err) {
+      console.warn('SpriteText failed to render for node:', node.id, err);
     }
 
     return group;

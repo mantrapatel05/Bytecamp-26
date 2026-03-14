@@ -16,7 +16,7 @@ const RightPanel = () => {
   const { activeTab, setActiveTab, chains, chainsLoading } = useApp();
 
   return (
-    <div className="w-[360px] shrink-0 flex flex-col border-l overflow-hidden" style={{ background: 'var(--base-hex)', borderColor: 'var(--border-1-hex)' }}>
+    <div className="w-[360px] h-full shrink-0 flex flex-col border-l overflow-hidden" style={{ background: 'var(--base-hex)', borderColor: 'var(--border-1-hex)' }}>
       {/* Tab bar */}
       <div className="relative flex border-b" style={{ borderColor: 'var(--border-1-hex)' }}>
         {TABS.map(tab => (

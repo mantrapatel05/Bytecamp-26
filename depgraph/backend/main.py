@@ -316,7 +316,8 @@ async def get_graph():
 
         nodes.append({
             "id": node_id,
-            "data": {**data, "severity": severity},
+            **data,
+            "severity": severity,
             "position": {"x": 0, "y": 0}  # Dagre sets real positions client-side
         })
 

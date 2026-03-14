@@ -112,6 +112,62 @@ def parse_typescript_file(filepath: str) -> CodeNode:
                 )
                 file_node.children.append(access_node)
 
+        # Capture JS/TS classes
+        if node.type == "class_declaration":
+            class_name = get_child_text(node, "name", source)
+            if class_name:
+                class_node = CodeNode(
+                    id=f"{filepath}::{class_name}",
+                    type="class",
+                    language="javascript" if not is_react and filepath.endswith('.js') else language_label,
+                    name=class_name,
+                    source_lines=source[node.start_byte:node.end_byte].decode('utf-8', errors='replace'),
+                    file=filepath,
+                    line_start=node.start_point[0],
+                    line_end=node.end_point[0],
+                    parent_id=filepath,
+                    metadata={"node_kind": "class"}
+                )
+                file_node.children.append(class_node)
+
+        # Capture JS/TS functions
+        if node.type == "function_declaration":
+            func_name = get_child_text(node, "name", source)
+            if func_name:
+                func_node = CodeNode(
+                    id=f"{filepath}::{func_name}",
+                    type="function",
+                    language="javascript" if not is_react and filepath.endswith('.js') else language_label,
+                    name=func_name,
+                    source_lines=source[node.start_byte:node.end_byte].decode('utf-8', errors='replace'),
+                    file=filepath,
+                    line_start=node.start_point[0],
+                    line_end=node.end_point[0],
+                    parent_id=filepath,
+                    metadata={"node_kind": "function"}
+                )
+                file_node.children.append(func_node)
+
+        # Capture arrow functions assigned to variables
+        if node.type == "variable_declarator":
+            name_node = node.child_by_field_name("name")
+            value_node = node.child_by_field_name("value")
+            if name_node and value_node and value_node.type == "arrow_function":
+                var_name = source[name_node.start_byte:name_node.end_byte].decode('utf-8', errors='replace')
+                func_node = CodeNode(
+                    id=f"{filepath}::{var_name}",
+                    type="function",
+                    language="javascript" if not is_react and filepath.endswith('.js') else language_label,
+                    name=var_name,
+                    source_lines=source[node.start_byte:node.end_byte].decode('utf-8', errors='replace'),
+                    file=filepath,
+                    line_start=node.start_point[0],
+                    line_end=node.end_point[0],
+                    parent_id=filepath,
+                    metadata={"node_kind": "arrow_function"}
+                )
+                file_node.children.append(func_node)
+
     return file_node
 
 
@@ -158,6 +214,60 @@ def _extract_ts_regex(file_node: CodeNode, source: str, filepath: str, is_react:
         if '}' in line and in_iface:
             in_iface = None
             iface_node = None
+
+        # JS/TS Class Fallback
+        class_match = re.match(r'(?:export\s+)?(?:default\s+)?class\s+(\w+)', line)
+        if class_match:
+            class_name = class_match.group(1)
+            class_node = CodeNode(
+                id=f"{filepath}::{class_name}",
+                type="class",
+                language="javascript" if filepath.endswith('.js') else "typescript",
+                name=class_name,
+                source_lines=line.strip(),
+                file=filepath,
+                line_start=i,
+                line_end=i,
+                parent_id=filepath,
+                metadata={"node_kind": "class"}
+            )
+            file_node.children.append(class_node)
+
+        # JS/TS Function Fallback
+        func_match = re.match(r'(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+(\w+)', line)
+        if func_match:
+            func_name = func_match.group(1)
+            func_node = CodeNode(
+                id=f"{filepath}::{func_name}",
+                type="function",
+                language="javascript" if filepath.endswith('.js') else "typescript",
+                name=func_name,
+                source_lines=line.strip(),
+                file=filepath,
+                line_start=i,
+                line_end=i,
+                parent_id=filepath,
+                metadata={"node_kind": "function"}
+            )
+            file_node.children.append(func_node)
+
+        # Arrow Function Fallback
+        arrow_match = re.match(r'(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|\w+)\s*=>', line)
+        if arrow_match:
+            var_name = arrow_match.group(1)
+            func_node = CodeNode(
+                id=f"{filepath}::{var_name}",
+                type="function",
+                language="javascript" if filepath.endswith('.js') else "typescript",
+                name=var_name,
+                source_lines=line.strip(),
+                file=filepath,
+                line_start=i,
+                line_end=i,
+                parent_id=filepath,
+                metadata={"node_kind": "arrow_function"}
+            )
+            file_node.children.append(func_node)
 
     if is_react:
         for i, line in enumerate(lines):

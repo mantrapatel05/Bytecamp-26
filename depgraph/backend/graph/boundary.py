@@ -27,6 +27,17 @@ BOUNDARY_PATTERNS = {
         r"export\s+(interface|type)\s+\w+",
         r"fetch\(|axios\.|useQuery\(|useMutation\(",
         r"z\.object\(",                            # Zod schema
+        r"app\.(get|post|put|delete|patch)\(",     # Express route
+        r"router\.(get|post|put|delete)\(",        # Express router
+        r"new\s+mongoose\.Schema\(",               # Mongoose schema
+        r"mongoose\.model\(",                      # Mongoose model
+    ],
+    "javascript": [
+        r"app\.(get|post|put|delete|patch)\(",     # Express route
+        r"router\.(get|post|put|delete)\(",        # Express router
+        r"new\s+mongoose\.Schema\(",               # Mongoose schema
+        r"mongoose\.model\(",                      # Mongoose model
+        r"fetch\(|axios\.",                        # API calls
     ],
     "react": [
         r"props\.\w+",
@@ -99,19 +110,26 @@ def _name_similarity(a: str, b: str) -> float:
 def create_boundary_pairs(boundary_nodes: list, max_pairs: int = 25) -> list:
     """
     Pair boundary nodes across adjacent language layers.
-    Language adjacency: sql → python → typescript → react
+    Language adjacency: sql → python/javascript → typescript → react
 
     To stay within 3-4 total LLM calls the total number of pairs is capped at
     *max_pairs*.  When capping is needed we keep pairs with the highest
     name-similarity score so the most-likely real connections are preserved.
     """
-    lang_order = ["sql", "python", "typescript", "react", "javascript"]
+    valid_pairs = [
+        ("sql", "python"),
+        ("sql", "javascript"),
+        ("sql", "typescript"),
+        ("python", "typescript"),
+        ("python", "react"),
+        ("javascript", "typescript"),
+        ("javascript", "react"),
+        ("typescript", "react")
+    ]
 
     # Build all candidate pairs, scoring each by name similarity
     scored: list[tuple[float, object]] = []
-    for i in range(len(lang_order) - 1):
-        emitter_lang = lang_order[i]
-        receiver_lang = lang_order[i + 1]
+    for emitter_lang, receiver_lang in valid_pairs:
         emitters = [n for n in boundary_nodes if n.language == emitter_lang]
         receivers = [n for n in boundary_nodes if n.language == receiver_lang]
         for e in emitters:

@@ -17,6 +17,7 @@ const MainApp = () => {
           initial={{ opacity: 0, filter: 'blur(8px)', x: -16 }}
           animate={{ opacity: 1, filter: 'blur(0px)', x: 0 }}
           transition={{ duration: 0.5, ease }}
+          className="h-full flex flex-col"
         >
           <LeftSidebar />
         </motion.div>
@@ -24,7 +25,7 @@ const MainApp = () => {
           initial={{ opacity: 0, filter: 'blur(8px)', y: 8 }}
           animate={{ opacity: 1, filter: 'blur(0px)', y: 0 }}
           transition={{ duration: 0.5, delay: 0.1, ease }}
-          className="flex-1 overflow-hidden"
+          className="flex-1 h-full flex flex-col overflow-hidden"
         >
           <GraphCanvas />
         </motion.div>
@@ -32,6 +33,7 @@ const MainApp = () => {
           initial={{ opacity: 0, filter: 'blur(8px)', x: 16 }}
           animate={{ opacity: 1, filter: 'blur(0px)', x: 0 }}
           transition={{ duration: 0.5, delay: 0.2, ease }}
+          className="h-full flex flex-col"
         >
           <RightPanel />
         </motion.div>
