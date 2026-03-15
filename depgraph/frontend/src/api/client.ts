@@ -180,15 +180,23 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    const url = error.config?.url || '';
+    const status = error.response?.status;
+
+    // Auth endpoints (login/register) handle errors inline — don't toast
+    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+
+    if (status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('depgraph_token');
       window.dispatchEvent(new Event('auth:logout'));
     }
-    const data = error.response?.data as { detail?: string } | undefined;
-    const message = data?.detail || error.message || 'An unexpected error occurred';
-    toast.error('API Error', {
-      description: message,
-    });
+
+    if (!isAuthEndpoint) {
+      const data = error.response?.data as { detail?: string } | undefined;
+      const message = data?.detail || error.message || 'An unexpected error occurred';
+      toast.error('API Error', { description: message });
+    }
+
     return Promise.reject(error);
   }
 );
@@ -227,6 +235,11 @@ export const apiClient = {
 
   async login(username: string, password: string): Promise<LoginResponse> {
     const res = await api.post('/auth/login', { username, password });
+    return res.data;
+  },
+
+  async register(username: string, password: string): Promise<LoginResponse> {
+    const res = await api.post('/auth/register', { username, password });
     return res.data;
   },
 

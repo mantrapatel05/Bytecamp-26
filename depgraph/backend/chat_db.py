@@ -1,9 +1,14 @@
+import hashlib
 import sqlite3
 import uuid
 import datetime
 from pathlib import Path
 
 DB_PATH = str(Path(__file__).resolve().parent.parent / "chat_history.db")
+
+
+def _hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 def get_db() -> sqlite3.Connection:
@@ -14,6 +19,13 @@ def get_db() -> sqlite3.Connection:
 
 def init_db():
     conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            username   TEXT PRIMARY KEY,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS chat_sessions (
             id       TEXT PRIMARY KEY,
@@ -101,3 +113,40 @@ def delete_session(session_id: str):
     conn.execute("DELETE FROM chat_sessions WHERE id=?", (session_id,))
     conn.commit()
     conn.close()
+
+
+# ── User management ────────────────────────────────────────────────────────────
+
+def create_user(username: str, password: str) -> bool:
+    """Create a new user. Returns False if username already taken."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
+            (username, _hash_password(password), datetime.datetime.utcnow().isoformat()),
+        )
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False  # username already exists
+    finally:
+        conn.close()
+
+
+def verify_user(username: str, password: str) -> bool:
+    """Check username + password against the DB."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT password_hash FROM users WHERE username=?", (username,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        return False
+    return row["password_hash"] == _hash_password(password)
+
+
+def user_exists(username: str) -> bool:
+    conn = get_db()
+    row = conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone()
+    conn.close()
+    return row is not None

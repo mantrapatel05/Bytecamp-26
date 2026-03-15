@@ -30,4 +30,12 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) 
 
 
 def check_credentials(username: str, password: str) -> bool:
-    return username == AUTH_USERNAME and password == AUTH_PASSWORD
+    # Check hardcoded admin account first
+    if username == AUTH_USERNAME and password == AUTH_PASSWORD:
+        return True
+    # Then check registered users in the database
+    try:
+        from backend.chat_db import verify_user
+        return verify_user(username, password)
+    except Exception:
+        return False

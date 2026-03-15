@@ -7,11 +7,10 @@ const ease = [0.22, 1, 0.36, 1];
 const LandingPage = () => {
   const navigate = useNavigate();
   const [exiting, setExiting] = useState(false);
-  const [repoPath, setRepoPath] = useState('');
 
-  const handleEnter = () => {
+  const handleGetStarted = () => {
     setExiting(true);
-    setTimeout(() => navigate('/analyzing', { state: { repoUrl: repoPath || '.' } }), 600);
+    setTimeout(() => navigate('/login'), 500);
   };
 
   return (
@@ -121,27 +120,29 @@ const LandingPage = () => {
           ))}
         </motion.div>
 
-        {/* Repo Input */}
+        {/* Feature pills */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2, ease }}
-          className="w-full max-w-md mt-4"
+          className="flex gap-3 flex-wrap justify-center mt-2"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.1 }}
         >
-          <div className="flex flex-col gap-2">
-            <span className="font-mono text-[10px] tracking-[0.2em]" style={{ color: 'var(--text-4-hex)' }}>TARGET REPOSITORY PATH</span>
-            <div className="flex items-center gap-2 p-2 rounded-lg border focus-within:border-teal-hex transition-all" style={{ background: 'var(--surface-hex)', borderColor: 'var(--border-2-hex)' }}>
-              <span style={{ color: 'var(--text-4-hex)', paddingLeft: '8px' }}>📁</span>
-              <input
-                type="text"
-                value={repoPath}
-                onChange={(e) => setRepoPath(e.target.value)}
-                placeholder="e.g. C:/Projects/my-app or https://github.com/..."
-                className="bg-transparent border-none outline-none flex-1 font-mono text-[13px]"
-                style={{ color: 'var(--text-1-hex)' }}
-              />
-            </div>
-          </div>
+          {['Cross-language rename', 'Impact analysis', 'Variable trail', 'RAG chat'].map((feat, i) => (
+            <motion.div
+              key={feat}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.1 + i * 0.08, ease }}
+              className="px-3 py-1.5 rounded-md font-mono text-[11px] flex items-center gap-1.5"
+              style={{
+                background: 'var(--surface-hex)',
+                border: '1px solid rgba(0,229,184,0.15)',
+                color: 'var(--text-3-hex)',
+              }}
+            >
+              <span style={{ color: 'var(--teal-hex)' }}>✦</span> {feat}
+            </motion.div>
+          ))}
         </motion.div>
 
         {/* CTA */}
@@ -149,18 +150,28 @@ const LandingPage = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.4, ease }}
-          whileHover={{ scale: 1.04, boxShadow: '0 0 32px rgba(0,229,184,0.25)' }}
+          whileHover={{ scale: 1.04, boxShadow: '0 0 40px rgba(0,229,184,0.3)' }}
           whileTap={{ scale: 0.98 }}
-          onClick={handleEnter}
-          className="mt-2 px-8 py-3.5 rounded-md font-syne font-semibold text-sm tracking-wider cursor-pointer w-full max-w-md"
+          onClick={handleGetStarted}
+          className="mt-4 px-10 py-4 rounded-md font-syne font-semibold text-base tracking-wider cursor-pointer"
           style={{
             background: 'linear-gradient(135deg, var(--teal-hex) 0%, var(--teal-2-hex) 100%)',
             color: 'var(--void-hex)',
             letterSpacing: '0.05em',
           }}
         >
-          Initialize Analysis →
+          Get Started →
         </motion.button>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.55 }}
+          className="font-mono text-[10px]"
+          style={{ color: 'var(--text-4-hex)' }}
+        >
+          Sign in or create a free account
+        </motion.p>
 
         {/* Trust signals */}
         <motion.div

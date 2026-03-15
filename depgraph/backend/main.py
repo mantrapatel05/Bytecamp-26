@@ -21,7 +21,7 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend.auth import create_token, verify_token, check_credentials
-from backend.chat_db import init_db, create_session, save_message, update_session_title, get_sessions, get_session_messages, delete_session
+from backend.chat_db import init_db, create_session, save_message, update_session_title, get_sessions, get_session_messages, delete_session, create_user, user_exists
 from backend.parsers.dispatcher import parse_repo, flatten_tree, build_node_index
 from backend.graph.structural import extract_structural_edges
 from backend.graph.boundary import detect_boundary_nodes, create_boundary_pairs
@@ -414,6 +414,26 @@ async def login(req: LoginRequest):
 @app.get("/api/auth/me")
 async def me(username: str = Depends(verify_token)):
     return {"username": username}
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/register")
+async def register(req: RegisterRequest):
+    if len(req.username.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if user_exists(req.username.strip()):
+        raise HTTPException(status_code=409, detail="Username already taken")
+    ok = create_user(req.username.strip(), req.password)
+    if not ok:
+        raise HTTPException(status_code=409, detail="Username already taken")
+    token = create_token(req.username.strip())
+    return {"token": token, "username": req.username.strip()}
 
 
 # ────────────────────────────────────────────────────────────

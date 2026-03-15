@@ -213,11 +213,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [addTerminalLine, loadImpactData]);
 
   useEffect(() => {
-    loadGraphData().then(() => {
-      setAnalysisComplete(true);
-      loadChains();
-    });
-  }, [loadGraphData, loadChains]);
+    const pendingRepo = localStorage.getItem('depgraph_pending_repo');
+    if (pendingRepo) {
+      localStorage.removeItem('depgraph_pending_repo');
+      // Small delay so the app renders before analysis kicks off
+      setTimeout(() => startAnalysisStream(pendingRepo), 400);
+    } else {
+      loadGraphData().then(() => {
+        setAnalysisComplete(true);
+        loadChains();
+      });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AppContext.Provider value={{
