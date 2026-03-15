@@ -1,11 +1,15 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 
 type AnalysisState = 'idle' | 'running' | 'complete';
 
 const TopBar = () => {
   const { analysisComplete, analysisRunning, startAnalysisStream, repoUrl, graphData } = useApp();
+  const { username, logout } = useAuth();
+  const navigate = useNavigate();
   const [btnState, setBtnState] = useState<AnalysisState>('idle');
 
   useEffect(() => {
@@ -116,6 +120,23 @@ const TopBar = () => {
         >
           ⚙
         </motion.button>
+
+        {username && (
+          <div className="flex items-center gap-1.5 ml-1">
+            <span className="font-mono text-[11px] px-2 py-1 rounded-md" style={{ background: 'var(--surface-hex)', color: 'var(--text-3-hex)' }}>
+              {username}
+            </span>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => { logout(); navigate('/login'); }}
+              className="font-mono text-[11px] px-2 py-1 rounded-md border cursor-pointer"
+              style={{ borderColor: 'var(--border-2-hex)', color: 'var(--text-3-hex)' }}
+            >
+              Sign out
+            </motion.button>
+          </div>
+        )}
       </div>
     </div>
   );

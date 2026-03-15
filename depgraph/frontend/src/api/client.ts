@@ -86,6 +86,30 @@ export interface ChatResponse {
   answer: string;
 }
 
+// ── Auth types ───────────────────────────────────────────────────────────────
+
+export interface LoginResponse {
+  token: string;
+  username: string;
+}
+
+// ── Chat history types ───────────────────────────────────────────────────────
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  session_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
+
 // ── Knowledge Graph enrichment types ────────────────────────────────────────
 
 export interface ChainStep {
@@ -137,15 +161,29 @@ const API_BASE = 'http://localhost:8000/api';
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE,
+  timeout: 40000, // 40s — accounts for LLM latency
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Inject auth token on every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('depgraph_token');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return config;
 });
 
 // Global error interceptor
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('depgraph_token');
+      window.dispatchEvent(new Event('auth:logout'));
+    }
     const data = error.response?.data as { detail?: string } | undefined;
     const message = data?.detail || error.message || 'An unexpected error occurred';
     toast.error('API Error', {
@@ -171,12 +209,51 @@ export const apiClient = {
     return res.data;
   },
 
-  async chat(question: string, contextNodeId?: string): Promise<ChatResponse> {
-    const body: { question: string; selected_node_id?: string } = { question };
+  async chat(
+    question: string,
+    contextNodeId?: string,
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>,
+    sessionId?: string,
+  ): Promise<ChatResponse> {
+    const body: { question: string; selected_node_id?: string; history?: object[]; session_id?: string } = { question };
     if (contextNodeId) body.selected_node_id = contextNodeId;
-    
+    if (history?.length) body.history = history.map(m => ({ role: m.role, content: m.content }));
+    if (sessionId) body.session_id = sessionId;
     const res = await api.post('/chat', body);
     return res.data;
+  },
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
+  async login(username: string, password: string): Promise<LoginResponse> {
+    const res = await api.post('/auth/login', { username, password });
+    return res.data;
+  },
+
+  async getMe(): Promise<{ username: string }> {
+    const res = await api.get('/auth/me');
+    return res.data;
+  },
+
+  // ── Chat history ──────────────────────────────────────────────────────────
+
+  async createChatSession(): Promise<ChatSession> {
+    const res = await api.post('/chat/sessions');
+    return res.data;
+  },
+
+  async getChatSessions(): Promise<{ sessions: ChatSession[] }> {
+    const res = await api.get('/chat/sessions');
+    return res.data;
+  },
+
+  async getChatSessionMessages(sessionId: string): Promise<{ session_id: string; messages: ChatMessage[] }> {
+    const res = await api.get(`/chat/sessions/${sessionId}`);
+    return res.data;
+  },
+
+  async deleteChatSession(sessionId: string): Promise<void> {
+    await api.delete(`/chat/sessions/${sessionId}`);
   },
 
   async migrate(nodeId: string, newName: string): Promise<{

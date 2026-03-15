@@ -12,7 +12,7 @@ if sys.stdout.encoding != 'utf-8':
 import networkx as nx
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -20,6 +20,8 @@ from pydantic import BaseModel
 load_dotenv()
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from backend.auth import create_token, verify_token, check_credentials
+from backend.chat_db import init_db, create_session, save_message, update_session_title, get_sessions, get_session_messages, delete_session
 from backend.parsers.dispatcher import parse_repo, flatten_tree, build_node_index
 from backend.graph.structural import extract_structural_edges
 from backend.graph.boundary import detect_boundary_nodes, create_boundary_pairs
@@ -259,6 +261,7 @@ async def run_full_analysis(repo_path: str):
 @app.on_event("startup")
 async def startup_event():
     global G
+    init_db()
     if os.path.exists(GRAPH_PATH):
         try:
             G = load_graph(GRAPH_PATH)
@@ -363,17 +366,89 @@ async def narrate_endpoint(node_id: str):
     return {"narration": await narrate_impact(G, node_id)}
 
 
+# ────────────────────────────────────────────────────────────
+# Auth endpoints
+# ────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/login")
+async def login(req: LoginRequest):
+    if not check_credentials(req.username, req.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = create_token(req.username)
+    return {"token": token, "username": req.username}
+
+
+@app.get("/api/auth/me")
+async def me(username: str = Depends(verify_token)):
+    return {"username": username}
+
+
+# ────────────────────────────────────────────────────────────
+# Chat with history persistence
+# ────────────────────────────────────────────────────────────
+
 class ChatRequest(BaseModel):
     question: str
     selected_node_id: str = None
+    history: list[dict] = []
+    session_id: str = None  # if set, messages are saved to this session
 
 
 @app.post("/api/chat")
-async def chat_endpoint(req: ChatRequest):
-    """Graph RAG chat. Grounds answer in subgraph context."""
+async def chat_endpoint(req: ChatRequest, username: str = Depends(verify_token)):
+    """Graph RAG chat. Grounds answer in subgraph context with conversation history."""
     if G is None:
         raise HTTPException(status_code=503, detail="Graph not built yet. Run /api/analyze first.")
-    return {"answer": await answer_query(G, req.question, req.selected_node_id)}
+    answer = await answer_query(G, req.question, req.selected_node_id, req.history)
+
+    # Persist to session if provided
+    if req.session_id:
+        try:
+            save_message(req.session_id, "user", req.question)
+            save_message(req.session_id, "assistant", answer)
+            # Auto-title session from first user message
+            msgs = get_session_messages(req.session_id)
+            if len(msgs) <= 2:
+                title = req.question[:60] + ("..." if len(req.question) > 60 else "")
+                update_session_title(req.session_id, title)
+        except Exception as e:
+            print(f"  [WARN] Failed to save chat message: {e}")
+
+    return {"answer": answer}
+
+
+# ── Session management ────────────────────────────────────────────────────────
+
+@app.post("/api/chat/sessions")
+async def create_chat_session(username: str = Depends(verify_token)):
+    """Create a new chat session."""
+    session = create_session(username)
+    return session
+
+
+@app.get("/api/chat/sessions")
+async def list_chat_sessions(username: str = Depends(verify_token)):
+    """List all chat sessions for the authenticated user."""
+    return {"sessions": get_sessions(username)}
+
+
+@app.get("/api/chat/sessions/{session_id}")
+async def get_chat_session(session_id: str, username: str = Depends(verify_token)):
+    """Get messages for a specific session."""
+    messages = get_session_messages(session_id)
+    return {"session_id": session_id, "messages": messages}
+
+
+@app.delete("/api/chat/sessions/{session_id}")
+async def delete_chat_session(session_id: str, username: str = Depends(verify_token)):
+    """Delete a chat session and all its messages."""
+    delete_session(session_id)
+    return {"status": "deleted"}
 
 
 class MigrateRequest(BaseModel):
